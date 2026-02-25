@@ -7,13 +7,20 @@ import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { Eye, EyeOff } from "lucide-react";
 
+export function meta() {
+    return [
+        { title: "Login | CPDO Zoning Management System" },
+        { name: "description", content: "Sign in to your account" },
+    ];
+}
+
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
 
     const loginMutation = useMutation({
-        mutationFn: (credentials: Record<string, string>) => Authentication.login(credentials),
+        mutationFn: async (credentials: Record<string, string>) => await Authentication.login(credentials),
         onSuccess: (data) => {
             console.log("Logged in successfully:", data);
             // Usually you would redirect here using React Router's useNavigate.
@@ -24,7 +31,7 @@ export default function Login() {
         }
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = (e: React.SubmitEvent) => {
         e.preventDefault();
         loginMutation.mutate({ email, password });
     };

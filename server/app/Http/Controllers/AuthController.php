@@ -18,8 +18,10 @@ class AuthController extends Controller
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
 
+            $user = Auth::user()->load('roles.permissions')->append('permissions');
+
             return response()->json([
-                'user' => Auth::user()
+                'user' => $user
             ]);
         }
 
@@ -40,8 +42,10 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
+        $user = $request->user()->load('roles.permissions')->append('permissions');
+
         return response()->json([
-            'user' => $request->user()
+            'user' => $user
         ]);
     }
 }
