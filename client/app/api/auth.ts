@@ -16,7 +16,7 @@ export class Authentication {
     return response.data;
   }
 
-  static async me() {
+  static async user() {
     const response = await axiosInstance.get("/api/user");
     return response.data;
   }

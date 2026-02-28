@@ -6,6 +6,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { Eye, EyeOff } from "lucide-react";
+import { useNavigate } from "react-router";
+import { useAuthStore } from "../store/auth";
 
 export function meta() {
     return [
@@ -18,13 +20,14 @@ export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const navigate = useNavigate();
+    const setUser = useAuthStore((state) => state.setUser);
 
     const loginMutation = useMutation({
         mutationFn: async (credentials: Record<string, string>) => await Authentication.login(credentials),
         onSuccess: (data) => {
-            console.log("Logged in successfully:", data);
-            // Usually you would redirect here using React Router's useNavigate.
-            // e.g., navigate('/dashboard');
+            setUser(data.user);
+            navigate('/dashboard');
         },
         onError: (error) => {
             console.error("Login failed:", error);

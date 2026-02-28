@@ -8,9 +8,11 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { TooltipProvider } from "~/components/ui/tooltip";
+import { Toaster } from "~/components/ui/sonner"
 import "./app.css";
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [
     { title: "CPDO Zoning Management System" },
     { name: "description", content: "CPDO Zoning Management System" },
@@ -40,7 +42,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        {children}
+        <TooltipProvider>
+          {children}
+          <Toaster position="top-right" />
+        </TooltipProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

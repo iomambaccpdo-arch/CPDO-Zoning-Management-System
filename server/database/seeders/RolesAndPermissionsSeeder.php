@@ -14,64 +14,94 @@ class RolesAndPermissionsSeeder extends Seeder
     public function run(): void
     {
         // Create Permissions
-        $permissions = [
-            'view.dashboard',
-            'view.files',
-            'create.files',
-            'update.files',
-            'delete.files',
-            'view.accounts',
-            'create.accounts',
-            'update.accounts',
-            'delete.accounts',
-        ];
+        $permissionsList = config('permissions.list');
 
-        foreach ($permissions as $perm) {
-            Permission::firstOrCreate(['name' => $perm]);
+        foreach ($permissionsList as $resource => $actions) {
+            foreach ($actions as $action) {
+                Permission::firstOrCreate([
+                    'resource' => $resource,
+                    'name' => $action,
+                ]);
+            }
         }
 
         // Create Roles
-        $coordinator = Role::firstOrCreate(['code' => 1], ['name' => 'Coordinator']);
-        $zoningOfficer = Role::firstOrCreate(['code' => 2], ['name' => 'Zoning Officer']);
-        $zoningInspector = Role::firstOrCreate(['code' => 3], ['name' => 'Zoning Inspector']);
+        $superAdminRole = Role::firstOrCreate(['code' => 900], ['name' => 'Super Admin']);
+        $coordinatorRole = Role::firstOrCreate(['code' => 800], ['name' => 'Coordinator']);
+        $zoningOfficerRole = Role::firstOrCreate(['code' => 700], ['name' => 'Zoning Officer']);
+        $zoningInspectorRole = Role::firstOrCreate(['code' => 600], ['name' => 'Zoning Inspector']);
+
+        // Helper function to get permission IDs based on role config
+        $getPermissionIds = function ($roleConfig) {
+            $ids = [];
+            foreach ($roleConfig as $resource => $actions) {
+                $ids = array_merge($ids, Permission::where('resource', $resource)
+                    ->whereIn('name', $actions)
+                    ->pluck('id')
+                    ->toArray());
+            }
+            return $ids;
+        };
 
         // Assign Permissions to Roles
-        $coordinator->permissions()->sync(Permission::whereIn('name', [
-            'view.dashboard', 'view.files', 'create.files', 'update.files', 'delete.files',
-            'view.accounts', 'create.accounts', 'update.accounts', 'delete.accounts'
-        ])->pluck('id'));
+        $superAdminRole->permissions()->sync($getPermissionIds(config('permissions.roles.super_admin')));
 
-        $zoningOfficer->permissions()->sync(Permission::whereIn('name', [
-            'view.dashboard', 'view.files', 'create.files'
-        ])->pluck('id'));
+        $coordinatorRole->permissions()->sync($getPermissionIds(config('permissions.roles.coordinator')));
 
-        $zoningInspector->permissions()->sync(Permission::whereIn('name', [
-            'view.dashboard', 'view.files'
-        ])->pluck('id'));
+        $zoningOfficerRole->permissions()->sync($getPermissionIds(config('permissions.roles.zoning_officer')));
+
+        $zoningInspectorRole->permissions()->sync($getPermissionIds(config('permissions.roles.zoning_inspector')));
 
         // Seed Users
-        $coordinatorUser = User::firstOrCreate([
-            'email' => 'joseph@example.com'
+        $superAdminUser = User::firstOrCreate([
+            'email' => 'superadmin@example.com'
         ], [
-            'name' => 'Joseph Raymund',
+            'first_name' => 'Super',
+            'last_name' => 'Admin',
+            'designation' => 'System Administrator',
+            'section' => 'IT Section',
             'password' => Hash::make('123456789')
         ]);
-        $coordinatorUser->roles()->sync([$coordinator->id]);
+
+        $coordinatorUser = User::firstOrCreate([
+            'email' => 'coordinator@example.com'
+        ], [
+            'first_name' => 'Joseph',
+            'last_name' => 'Raymund',
+            'designation' => 'CPDC',
+            'section' => 'Plans',
+            'password' => Hash::make('123456789')
+        ]);
 
         $officerUser = User::firstOrCreate([
             'email' => 'officer@example.com'
         ], [
-            'name' => 'Zoning Officer',
+            'first_name' => 'Zoning',
+            'last_name' => 'Officer',
+            'designation' => 'Zoning Officer I',
+            'section' => 'Zoning Section',
             'password' => Hash::make('123456789')
         ]);
-        $officerUser->roles()->sync([$zoningOfficer->id]);
 
         $inspectorUser = User::firstOrCreate([
-            'email' => 'ivann@example.com'
+            'email' => 'inspector@example.com'
         ], [
-            'name' => 'Ivann Omambac',
+            'first_name' => 'Ivann',
+            'last_name' => 'Omambac',
+            'designation' => 'Zoning Inspector',
+            'section' => 'Enforcement Section',
             'password' => Hash::make('123456789')
         ]);
-        $inspectorUser->roles()->sync([$zoningInspector->id]);
+
+        // Assign Roles to Users
+        $superAdminUser->roles()->sync([$superAdminRole->id]);
+
+        $coordinatorUser->roles()->sync([$coordinatorRole->id]);
+
+        $officerUser->roles()->sync([$zoningOfficerRole->id]);
+
+        $inspectorUser->roles()->sync([$zoningInspectorRole->id]);
+
+
     }
 }
