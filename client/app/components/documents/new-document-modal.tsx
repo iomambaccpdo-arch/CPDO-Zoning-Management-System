@@ -48,7 +48,8 @@ import { AccountService } from "~/api/AccountService"
 import { DocumentService } from "~/api/DocumentService"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-
+import { calculateDueDate } from "~/lib/date-utils"
+import { MapPickerModal } from "~/components/ui/map-picker/map-picker-modal"
 
 
 const steps = [
@@ -98,6 +99,7 @@ interface NewDocumentModalProps {
 export function NewDocumentModal({ children }: NewDocumentModalProps) {
     const [open, setOpen] = React.useState(false)
     const [activeStep, setActiveStep] = React.useState(0)
+    const [isMapModalOpen, setIsMapModalOpen] = React.useState(false)
     const queryClient = useQueryClient()
 
     const { data: zonings } = useQuery({
@@ -135,15 +137,18 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
             lotArea: "",
             storey: "",
             mezanine: "",
-            dueDate: "March 13, 2026", // Mock calculated date
+            dueDate: "", // Auto-calculated
         },
     })
 
-    // Ensure due date calculates (mocked here)
+    // Calculate due date automatically: +12 working days from Date of Application
     React.useEffect(() => {
-        if (form.watch("dateOfApplication")) {
-            // Mock logic: +12 working days
-            form.setValue("dueDate", "March 13, 2026")
+        const appDate = form.watch("dateOfApplication");
+        if (appDate) {
+            const dueDate = calculateDueDate(appDate, 12);
+            form.setValue("dueDate", format(dueDate, "MMMM d, yyyy"));
+        } else {
+            form.setValue("dueDate", "");
         }
     }, [form.watch("dateOfApplication")])
 
@@ -479,7 +484,7 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                                     selected={field.value}
                                                     onChange={field.onChange}
                                                     placeholder="Search by name or email..."
-                                                    className="border-red-300 bg-gray-50/50"
+                                                    className=" bg-gray-50/50"
                                                 />
                                             </FormControl>
                                             <FormMessage />
@@ -489,23 +494,32 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                 <FormField
                                     control={form.control}
                                     name="oic"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>OIC *</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full bg-gray-50/50">
-                                                        <SelectValue placeholder="Select OIC" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="oic-1">Juan Dela Cruz</SelectItem>
-                                                    <SelectItem value="oic-2">Maria Clara</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
+                                    render={({ field }) => {
+                                        const validUsers = users?.data?.filter(u => !u.roles.some(r => r.name === 'Super Admin')) || [];
+                                        return (
+                                            <FormItem>
+                                                <FormLabel>OIC *</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="w-full bg-gray-50/50">
+                                                            <SelectValue placeholder="Select OIC" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {validUsers.map(user => {
+                                                            const fullName = `${user.first_name} ${user.last_name}`;
+                                                            return (
+                                                                <SelectItem key={user.id} value={fullName}>
+                                                                    {fullName}
+                                                                </SelectItem>
+                                                            );
+                                                        })}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        );
+                                    }}
                                 />
                             </div>
 
@@ -593,9 +607,15 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                             <FormLabel>Geographic Coordinates *</FormLabel>
                                             <div className="flex gap-2">
                                                 <FormControl>
-                                                    <Input placeholder="Click to select coordinates" className="bg-blue-50/50 flex-1" {...field} />
+                                                    <Input placeholder="Click pin to pick coordinates" className="bg-blue-50/50 flex-1" {...field} />
                                                 </FormControl>
-                                                <Button type="button" variant="outline" size="icon" className="shrink-0 text-red-500">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="shrink-0 text-red-500 hover:bg-red-50 hover:text-red-600 border-red-200"
+                                                    onClick={() => setIsMapModalOpen(true)}
+                                                >
                                                     <MapPin className="h-4 w-4" />
                                                 </Button>
                                             </div>
@@ -760,6 +780,17 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                     )}
                 </DialogFooter>
             </DialogContent>
+
+            {/* Map Picker Modal */}
+            <MapPickerModal
+                open={isMapModalOpen}
+                onClose={() => setIsMapModalOpen(false)}
+                onConfirm={(coords) => {
+                    form.setValue("coordinates", coords)
+                    form.trigger("coordinates")
+                }}
+                initialCoordinates={form.getValues("coordinates")}
+            />
         </Dialog>
     )
 }

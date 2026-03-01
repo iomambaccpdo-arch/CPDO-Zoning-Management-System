@@ -12,6 +12,12 @@ import {
     TableHeader,
     TableRow,
 } from "~/components/ui/table"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "~/components/ui/tooltip"
 import { useQuery } from "@tanstack/react-query"
 import { DocumentService } from "~/api/DocumentService"
 import type { Document } from "~/api/DocumentService"
@@ -84,7 +90,7 @@ export default function Files() {
                                 <TableHead className=" text-[12px] font-semibold">Date</TableHead>
                                 <TableHead className=" text-[12px] font-semibold">Title</TableHead>
                                 <TableHead className=" text-[12px] font-semibold">Type</TableHead>
-                                <TableHead className=" text-[12px] font-semibold">Zn App No.</TableHead>
+                                <TableHead className=" text-[12px] font-semibold">Application No.</TableHead>
                                 <TableHead className=" text-[12px] font-semibold">Due Date</TableHead>
                                 <TableHead className=" text-[12px] font-semibold">Applicant</TableHead>
                                 <TableHead className=" text-[12px] font-semibold">Location</TableHead>
@@ -129,31 +135,59 @@ export default function Files() {
                                             : "—"}
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-6 px-2 text-[11px] gap-1"
-                                                onClick={() => setPreviewDoc(doc)}
-                                            >
-                                                <Eye className="h-3 w-3" /> Preview
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                className="h-6 px-2 text-[11px] gap-1 bg-green-600 hover:bg-green-700 text-white"
-                                            >
-                                                <Pencil className="h-3 w-3" /> Edit
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                className="h-6 px-2 text-[11px] gap-1 bg-red-600 hover:bg-red-700 text-white"
-                                                onClick={() => {
-                                                    setDeleteDocId(doc.id)
-                                                    setDeleteDocTitle(doc.document_title)
-                                                }}
-                                            >
-                                                <Trash2 className="h-3 w-3" /> Delete
-                                            </Button>
+                                        <div className="flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
+                                            <TooltipProvider delayDuration={150}>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 w-7 p-0"
+                                                            onClick={() => setPreviewDoc(doc)}
+                                                            title="Preview"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Preview Document</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 bg-green-600 hover:bg-green-700 text-white"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Edit Document</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 bg-red-600 hover:bg-red-700 text-white"
+                                                            onClick={() => {
+                                                                setDeleteDocId(doc.id)
+                                                                setDeleteDocTitle(doc.document_title)
+                                                            }}
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Delete Document</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
                                         </div>
                                     </TableCell>
                                 </TableRow>

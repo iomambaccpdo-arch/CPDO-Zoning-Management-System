@@ -44,6 +44,27 @@ export interface Document {
   attachments?: DocumentAttachment[];
 }
 
+export interface DashboardMonthCount {
+  month: number;
+  month_name: string;
+  count: number;
+}
+
+export interface DashboardAttachment {
+  id: number;
+  document_id: number;
+  file_name: string;
+  file_type: string | null;
+  file_size: number | null;
+  created_at: string;
+  document?: { id: number; document_title: string };
+}
+
+export interface DashboardData {
+  monthly_counts: DashboardMonthCount[];
+  recent_attachments: DashboardAttachment[];
+}
+
 export interface PaginatedDocuments {
   data: Document[];
   current_page: number;
@@ -61,10 +82,19 @@ export class DocumentService {
     return response.data;
   }
 
+  static async getDashboard(year?: number) {
+    const response = await axiosInstance.get<DashboardData>("/api/dashboard", {
+      params: year ? { year } : {},
+    });
+    return response.data;
+  }
+
   static async getDocuments(params?: {
     search?: string;
     page?: number;
     per_page?: number;
+    year?: number;
+    month?: number;
   }) {
     const response = await axiosInstance.get<PaginatedDocuments>(
       "/api/documents",

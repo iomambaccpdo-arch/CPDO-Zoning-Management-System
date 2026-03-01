@@ -17,6 +17,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Profile Management
     Route::put('/profile', [ProfileController::class, 'update']);
 
+    // Dashboard
+    Route::get('dashboard', [\App\Http\Controllers\DocumentController::class, 'dashboard']);
+
     // Documents
     Route::get('documents/next-application-no', [\App\Http\Controllers\DocumentController::class, 'getNextApplicationNo']);
     Route::get('documents', [\App\Http\Controllers\DocumentController::class, 'index']);

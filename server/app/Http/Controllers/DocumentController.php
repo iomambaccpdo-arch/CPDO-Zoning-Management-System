@@ -6,10 +6,48 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Document;
+use App\Models\DocumentAttachment;
+use App\Models\User;
+use App\Jobs\SendDocumentRoutedEmail;
 use Carbon\Carbon;
 
 class DocumentController extends Controller
 {
+    // ---------------------------------------------------------------
+    // Dashboard: monthly document counts + recent file attachments
+    // ---------------------------------------------------------------
+    public function dashboard(Request $request)
+    {
+        $year = (int) $request->query('year', Carbon::now()->year);
+
+        // Count documents per month for the given year (PostgreSQL-compatible)
+        $rows = Document::selectRaw('EXTRACT(MONTH FROM created_at)::integer as month, COUNT(*) as count')
+            ->whereYear('created_at', $year)
+            ->groupByRaw('EXTRACT(MONTH FROM created_at)')
+            ->get()
+            ->keyBy('month');
+
+        $months = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $months[] = [
+                'month'      => $m,
+                'month_name' => Carbon::create($year, $m, 1)->format('F'),
+                'count'      => isset($rows[$m]) ? (int) $rows[$m]->count : 0,
+            ];
+        }
+
+        // 10 most-recent attachments across all documents
+        $recentAttachments = DocumentAttachment::with('document:id,document_title')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['id', 'document_id', 'file_name', 'file_type', 'file_size', 'created_at']);
+
+        return response()->json([
+            'monthly_counts'     => $months,
+            'recent_attachments' => $recentAttachments,
+        ]);
+    }
+
     public function getNextApplicationNo(Request $request)
     {
         // $documentTitle = $request->query('documentTitle', '');
@@ -117,6 +155,14 @@ class DocumentController extends Controller
 
             DB::commit();
 
+            // 4. Dispatch Email Jobs
+            if (!empty($validatedData['routedTo'])) {
+                $routedUsers = User::whereIn('id', $validatedData['routedTo'])->get();
+                foreach ($routedUsers as $user) {
+                    SendDocumentRoutedEmail::dispatch($document, $user);
+                }
+            }
+
             return response()->json([
                 'message' => 'Document created successfully.',
                 'document' => $document->load(['attachments', 'routedToUsers'])
@@ -135,6 +181,8 @@ class DocumentController extends Controller
     {
         $perPage = $request->query('per_page', 15);
         $search  = $request->query('search', '');
+        $year    = $request->query('year');
+        $month   = $request->query('month');
 
         $query = Document::with(['zoning', 'projectType', 'barangay', 'purok', 'routedToUsers', 'attachments'])
             ->latest();
@@ -146,6 +194,9 @@ class DocumentController extends Controller
                   ->orWhere('zoning_application_no', 'like', "%{$search}%");
             });
         }
+
+        if ($year)  { $query->whereYear('created_at', (int) $year); }
+        if ($month) { $query->whereMonth('created_at', (int) $month); }
 
         return response()->json($query->paginate($perPage));
     }

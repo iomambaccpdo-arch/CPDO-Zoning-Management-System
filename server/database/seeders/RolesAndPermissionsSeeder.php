@@ -86,8 +86,8 @@ class RolesAndPermissionsSeeder extends Seeder
         $inspectorUser = User::firstOrCreate([
             'email' => 'inspector@example.com'
         ], [
-            'first_name' => 'Ivann',
-            'last_name' => 'Omambac',
+            'first_name' => 'Zoning',
+            'last_name' => 'Inspector',
             'designation' => 'Zoning Inspector',
             'section' => 'Enforcement Section',
             'password' => Hash::make('123456789')
