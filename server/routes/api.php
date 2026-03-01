@@ -17,5 +17,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // Profile Management
     Route::put('/profile', [ProfileController::class, 'update']);
 
+    // Documents
+    Route::get('documents/next-application-no', [\App\Http\Controllers\DocumentController::class, 'getNextApplicationNo']);
+    Route::get('documents', [\App\Http\Controllers\DocumentController::class, 'index']);
+    Route::post('documents', [\App\Http\Controllers\DocumentController::class, 'store']);
+    Route::post('documents/{document}', [\App\Http\Controllers\DocumentController::class, 'update']);
+    Route::delete('documents/{document}', [\App\Http\Controllers\DocumentController::class, 'destroy']);
+
     Route::get('roles', [RoleController::class, 'index'])->middleware('permission:accounts,view');
+    Route::get('zonings', [\App\Http\Controllers\ZoningController::class, 'index']);
+    Route::get('barangays', [\App\Http\Controllers\BarangayController::class, 'index']);
 });

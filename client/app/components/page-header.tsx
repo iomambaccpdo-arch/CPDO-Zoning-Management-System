@@ -16,9 +16,6 @@ export function PageHeader() {
     const { user, logout } = useAuthStore()
     const navigate = useNavigate()
 
-    console.log(user);
-
-
     const handleLogout = async () => {
         try {
             await Authentication.logout()

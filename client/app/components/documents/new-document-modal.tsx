@@ -38,7 +38,18 @@ import { Textarea } from "~/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import { Calendar } from "~/components/ui/calendar"
 import { Stepper } from "~/components/ui/stepper"
+import { MultiSelect } from "~/components/ui/multi-select"
 import { cn } from "~/lib/utils"
+import { ZoningService } from "~/api/ZoningService"
+import type { Zoning, ProjectType } from "~/api/ZoningService"
+import { LocationService } from "~/api/LocationService"
+import type { Barangay, Purok } from "~/api/LocationService"
+import { AccountService } from "~/api/AccountService"
+import { DocumentService } from "~/api/DocumentService"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+
+
 
 const steps = [
     { title: "Document", description: "Basic Info" },
@@ -61,7 +72,7 @@ const formSchema = z.object({
     applicantName: z.string().min(1, { message: "Applicant Name is required" }),
     receivedBy: z.string().min(1, { message: "Received By is required" }),
     assistedBy: z.string().optional(),
-    routedTo: z.string().min(1, { message: "Routed to is required" }),
+    routedTo: z.array(z.string()).min(1, { message: "Routed to is required" }),
     oic: z.string().min(1, { message: "OIC is required" }),
 
     // Step 3
@@ -87,6 +98,22 @@ interface NewDocumentModalProps {
 export function NewDocumentModal({ children }: NewDocumentModalProps) {
     const [open, setOpen] = React.useState(false)
     const [activeStep, setActiveStep] = React.useState(0)
+    const queryClient = useQueryClient()
+
+    const { data: zonings } = useQuery({
+        queryKey: ['zonings'],
+        queryFn: ZoningService.getZonings,
+    })
+
+    const { data: barangays } = useQuery({
+        queryKey: ['barangays'],
+        queryFn: LocationService.getBarangays,
+    })
+
+    const { data: users } = useQuery({
+        queryKey: ['users'],
+        queryFn: () => AccountService.getUsers({ per_page: 100 }),
+    })
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -98,7 +125,7 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
             applicantName: "",
             receivedBy: "",
             assistedBy: "",
-            routedTo: "",
+            routedTo: [],
             oic: "",
             barangay: "",
             purok: "",
@@ -119,6 +146,22 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
             form.setValue("dueDate", "March 13, 2026")
         }
     }, [form.watch("dateOfApplication")])
+
+    // Generate Application No. on document title change
+    const documentTitle = form.watch("documentTitle");
+    React.useEffect(() => {
+        const fetchApplicationNo = async () => {
+            if (documentTitle) {
+                try {
+                    const data = await DocumentService.getNextApplicationNo(documentTitle);
+                    form.setValue("zoningApplicationNo", data.applicationNo);
+                } catch (error) {
+                    console.error("Failed to fetch next application number", error);
+                }
+            }
+        };
+        fetchApplicationNo();
+    }, [documentTitle, form]);
 
     const nextStep = async () => {
         let fieldsToValidate: any[] = []
@@ -143,12 +186,62 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
         setActiveStep((prev) => Math.max(prev - 1, 0))
     }
 
+    const { mutate: createDocument, isPending } = useMutation({
+        mutationFn: async (values: z.infer<typeof formSchema>) => {
+            const formData = new FormData()
+
+            // Append standard text/date fields
+            formData.append('documentTitle', values.documentTitle)
+            formData.append('zoning', values.zoning)
+            formData.append('zoningApplicationNo', values.zoningApplicationNo)
+            formData.append('typeOfProject', values.typeOfProject)
+            formData.append('dateOfApplication', values.dateOfApplication.toISOString())
+            if (values.dueDate) formData.append('dueDate', values.dueDate)
+
+            formData.append('applicantName', values.applicantName)
+            formData.append('receivedBy', values.receivedBy)
+            if (values.assistedBy) formData.append('assistedBy', values.assistedBy)
+            formData.append('oic', values.oic)
+
+            formData.append('barangay', values.barangay)
+            formData.append('purok', values.purok)
+            formData.append('landmark', values.landmark)
+            if (values.coordinates) formData.append('coordinates', values.coordinates)
+
+            formData.append('floorArea', values.floorArea)
+            formData.append('lotArea', values.lotArea)
+            formData.append('storey', values.storey)
+            if (values.mezanine) formData.append('mezanine', values.mezanine)
+
+            // Append arrays
+            values.routedTo.forEach((userId) => {
+                formData.append('routedTo[]', userId)
+            })
+
+            // Append files
+            if (values.files && values.files.length > 0) {
+                values.files.forEach((file: File) => {
+                    formData.append('files[]', file)
+                })
+            }
+
+            return await DocumentService.createDocument(formData)
+        },
+        onSuccess: () => {
+            setOpen(false)
+            form.reset()
+            setActiveStep(0)
+            queryClient.invalidateQueries({ queryKey: ['documents'] })
+            toast.success("Document created successfully")
+        },
+        onError: (error: any) => {
+            console.error("Failed to submit document:", error)
+            toast.error(error?.response?.data?.message || "Failed to create document")
+        }
+    })
+
     function onSubmit(values: z.infer<typeof formSchema>) {
-        console.log(values)
-        // Handle submission logic
-        setOpen(false)
-        form.reset()
-        setActiveStep(0)
+        createDocument(values)
     }
 
     return (
@@ -189,8 +282,14 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="locational-clearance">Locational Clearance</SelectItem>
-                                                    <SelectItem value="zoning-certification">Zoning Certification</SelectItem>
+                                                    <SelectItem value="LC Area">LC Area</SelectItem>
+                                                    <SelectItem value="LC Building">LC Building</SelectItem>
+                                                    <SelectItem value="LC Subdivision">LC Subdivision</SelectItem>
+                                                    <SelectItem value="LC LZBA Area">LC LZBA Area</SelectItem>
+                                                    <SelectItem value="LC LZBA Building">LC LZBA Building</SelectItem>
+                                                    <SelectItem value="LC LZBA Subdivision">LC LZBA Subdivision</SelectItem>
+                                                    <SelectItem value="Zoning Clearance">Zoning Clearance</SelectItem>
+                                                    <SelectItem value="Development Permit">Development Permit</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
@@ -203,16 +302,25 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Zoning *</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select
+                                                onValueChange={(value) => {
+                                                    field.onChange(value);
+                                                    form.setValue("typeOfProject", ""); // Reset dependent field
+                                                }}
+                                                defaultValue={field.value}
+                                                value={field.value}
+                                            >
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">
                                                         <SelectValue placeholder="Select Zoning" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="residential">Residential</SelectItem>
-                                                    <SelectItem value="commercial">Commercial</SelectItem>
-                                                    <SelectItem value="industrial">Industrial</SelectItem>
+                                                    {zonings?.map((zoning) => (
+                                                        <SelectItem key={zoning.id} value={zoning.id.toString()}>
+                                                            {zoning.name}
+                                                        </SelectItem>
+                                                    ))}
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
@@ -226,7 +334,7 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                         <FormItem>
                                             <FormLabel>Zoning Application No. *</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Enter application number" className="bg-blue-50/50" {...field} />
+                                                <Input readOnly placeholder="Enter application number" className="bg-blue-50/50" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -276,23 +384,32 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                 <FormField
                                     control={form.control}
                                     name="typeOfProject"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Type of Project *</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full bg-gray-50/50">
-                                                        <SelectValue placeholder="Select Type of Project" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="new">New</SelectItem>
-                                                    <SelectItem value="renewal">Renewal</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
+                                    render={({ field }) => {
+                                        const selectedZoningId = form.watch("zoning");
+                                        const selectedZoning = zonings?.find(z => z.id.toString() === selectedZoningId);
+                                        const projectTypes = selectedZoning?.project_types || [];
+
+                                        return (
+                                            <FormItem>
+                                                <FormLabel>Type of Project *</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value} disabled={!selectedZoningId || projectTypes.length === 0}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="w-full bg-gray-50/50">
+                                                            <SelectValue placeholder={!selectedZoningId ? "Select Zoning first" : projectTypes.length === 0 ? "No projects for this zoning" : "Select Type of Project"} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {projectTypes.map((pt) => (
+                                                            <SelectItem key={pt.id} value={pt.id.toString()}>
+                                                                {pt.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        );
+                                    }}
                                 />
                                 <FormField
                                     control={form.control}
@@ -357,7 +474,13 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                         <FormItem>
                                             <FormLabel>Routed to *</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="Search by name or email..." className="border-red-300 bg-gray-50/50" {...field} />
+                                                <MultiSelect
+                                                    options={users?.data?.map(u => ({ label: u.email, value: u.id.toString() })) || []}
+                                                    selected={field.value}
+                                                    onChange={field.onChange}
+                                                    placeholder="Search by name or email..."
+                                                    className="border-red-300 bg-gray-50/50"
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -394,15 +517,25 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Barangay *</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select
+                                                onValueChange={(value) => {
+                                                    field.onChange(value);
+                                                    form.setValue("purok", ""); // Reset dependent field
+                                                }}
+                                                defaultValue={field.value}
+                                                value={field.value}
+                                            >
                                                 <FormControl>
                                                     <SelectTrigger className="w-full bg-gray-50/50">
                                                         <SelectValue placeholder="Select Barangay" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="brgy-1">Barangay 1</SelectItem>
-                                                    <SelectItem value="brgy-2">Barangay 2</SelectItem>
+                                                    {barangays?.map((barangay) => (
+                                                        <SelectItem key={barangay.id} value={barangay.id.toString()}>
+                                                            {barangay.name}
+                                                        </SelectItem>
+                                                    ))}
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
@@ -412,23 +545,32 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                 <FormField
                                     control={form.control}
                                     name="purok"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Purok *</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full bg-gray-50/50">
-                                                        <SelectValue placeholder="Select Purok" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="purok-1">Purok 1</SelectItem>
-                                                    <SelectItem value="purok-2">Purok 2</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
+                                    render={({ field }) => {
+                                        const selectedBarangayId = form.watch("barangay");
+                                        const selectedBarangay = barangays?.find(b => b.id.toString() === selectedBarangayId);
+                                        const puroks = selectedBarangay?.puroks || [];
+
+                                        return (
+                                            <FormItem>
+                                                <FormLabel>Purok *</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value} disabled={!selectedBarangayId || puroks.length === 0}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="w-full bg-gray-50/50">
+                                                            <SelectValue placeholder={!selectedBarangayId ? "Select Barangay first" : puroks.length === 0 ? "No puroks for this barangay" : "Select Purok"} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {puroks.map((purok) => (
+                                                            <SelectItem key={purok.id} value={purok.id.toString()}>
+                                                                {purok.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        );
+                                    }}
                                 />
                                 <FormField
                                     control={form.control}
@@ -528,18 +670,49 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                                         <FormItem>
                                             <FormLabel className="sr-only">Upload Files</FormLabel>
                                             <FormControl>
-                                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
+                                                <div
+                                                    className="border-2 border-dashed border-gray-300 rounded-lg p-12 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer relative"
+                                                    onChange={async (e: React.ChangeEvent<HTMLInputElement>) => {
+                                                        const files = e.target.files;
+                                                        if (files) {
+                                                            let validFiles = Array.from(files);
+                                                            // Provide a basic merge if previously selected, or just overwrite (overwriting is simpler here)
+                                                            field.onChange(validFiles);
+                                                        }
+                                                    }}
+                                                >
+                                                    <input
+                                                        type="file"
+                                                        multiple
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                        accept=".pdf,.doc,.docx,.jpg,.png"
+                                                    />
                                                     <UploadCloud className="h-10 w-10 text-gray-400 mb-4" />
                                                     <div className="flex items-center gap-2 mb-2">
-                                                        <Button type="button" className="bg-green-600 hover:bg-green-700 text-white">
+                                                        <Button type="button" className="bg-green-600 hover:bg-green-700 text-white pointer-events-none">
                                                             <UploadCloud className="mr-2 h-4 w-4" />
                                                             Upload files
                                                         </Button>
-                                                        <span className="text-sm text-gray-500">No file attached. Upload one or more files.</span>
+                                                        <span className="text-sm text-gray-500">
+                                                            {field.value && field.value.length > 0
+                                                                ? `${field.value.length} file(s) attached.`
+                                                                : "No file attached. Upload one or more files."}
+                                                        </span>
                                                     </div>
                                                     <p className="text-xs text-gray-400 mt-2">
                                                         Supported files: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
                                                     </p>
+
+                                                    {field.value && field.value.length > 0 && (
+                                                        <div className="mt-4 w-full flex flex-col gap-2 max-h-32 overflow-y-auto">
+                                                            {field.value.map((f: File, i: number) => (
+                                                                <div key={i} className="text-sm bg-white p-2 rounded border flex justify-between items-center z-10">
+                                                                    <span className="truncate max-w-[200px]">{f.name}</span>
+                                                                    <span className="text-xs text-muted-foreground">{(f.size / 1024 / 1024).toFixed(2)} MB</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </FormControl>
                                             <FormMessage />
@@ -577,8 +750,12 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
                             Next Step
                         </Button>
                     ) : (
-                        <Button onClick={form.handleSubmit(onSubmit)} className="bg-green-600 hover:bg-green-700 text-white">
-                            Submit Document
+                        <Button
+                            onClick={form.handleSubmit(onSubmit)}
+                            disabled={isPending}
+                            className="bg-green-600 hover:bg-green-700 text-white md:min-w-[150px]"
+                        >
+                            {isPending ? "Submitting..." : "Submit Document"}
                         </Button>
                     )}
                 </DialogFooter>
