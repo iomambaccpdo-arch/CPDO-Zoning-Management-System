@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Models\DocumentAttachment;
 use App\Models\User;
 use App\Jobs\SendDocumentRoutedEmail;
+use App\Support\ActivityLogger;
 use Carbon\Carbon;
 
 class DocumentController extends Controller
@@ -50,14 +51,7 @@ class DocumentController extends Controller
 
     public function getNextApplicationNo(Request $request)
     {
-        // $documentTitle = $request->query('documentTitle', '');
-        
         $prefix = 'LC';
-        // if ($documentTitle === 'Zoning Clearance') {
-        //     $prefix = 'ZC';
-        // } elseif ($documentTitle === 'Development Permit') {
-        //     $prefix = 'DP';
-        // }
 
         $currentYear = Carbon::now()->year;
         
@@ -154,6 +148,13 @@ class DocumentController extends Controller
             }
 
             DB::commit();
+
+            ActivityLogger::log(
+                'create',
+                'documents',
+                $document->zoning_application_no,
+                "Created document: {$document->document_title} ({$document->zoning_application_no})"
+            );
 
             // 4. Dispatch Email Jobs
             if (!empty($validatedData['routedTo'])) {
@@ -270,6 +271,13 @@ class DocumentController extends Controller
 
             DB::commit();
 
+            ActivityLogger::log(
+                'update',
+                'documents',
+                $document->zoning_application_no,
+                "Updated document: {$document->document_title} ({$document->zoning_application_no})"
+            );
+
             return response()->json([
                 'message'  => 'Document updated successfully.',
                 'document' => $document->load(['zoning', 'projectType', 'barangay', 'purok', 'routedToUsers', 'attachments']),
@@ -284,11 +292,22 @@ class DocumentController extends Controller
     public function destroy(Document $document)
     {
         try {
+            $title  = $document->document_title;
+            $appNo  = $document->zoning_application_no;
+
             // Delete stored files from disk
             foreach ($document->attachments as $attachment) {
                 Storage::disk('local')->delete($attachment->file_path);
             }
             $document->delete();
+
+            ActivityLogger::log(
+                'delete',
+                'documents',
+                $appNo,
+                "Deleted document: {$title} ({$appNo})"
+            );
+
             return response()->json(['message' => 'Document deleted successfully.']);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to delete document.', 'error' => $e->getMessage()], 500);

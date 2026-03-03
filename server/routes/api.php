@@ -6,6 +6,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DocumentAttachmentController;
+use App\Http\Controllers\ActivityLogController;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
@@ -27,7 +29,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('documents/{document}', [\App\Http\Controllers\DocumentController::class, 'update']);
     Route::delete('documents/{document}', [\App\Http\Controllers\DocumentController::class, 'destroy']);
 
+    // File Attachments
+    Route::get('attachments', [DocumentAttachmentController::class, 'index']);
+    Route::get('attachments/{attachment}/preview', [DocumentAttachmentController::class, 'preview']);
+    Route::get('attachments/{attachment}/download', [DocumentAttachmentController::class, 'download']);
+    Route::delete('attachments/{attachment}', [DocumentAttachmentController::class, 'destroy']);
+
     Route::get('roles', [RoleController::class, 'index'])->middleware('permission:accounts,view');
     Route::get('zonings', [\App\Http\Controllers\ZoningController::class, 'index']);
     Route::get('barangays', [\App\Http\Controllers\BarangayController::class, 'index']);
+
+    // Activity Logs
+    Route::get('activity-logs', [ActivityLogController::class, 'index'])->middleware('permission:Activity Logs,view');
 });

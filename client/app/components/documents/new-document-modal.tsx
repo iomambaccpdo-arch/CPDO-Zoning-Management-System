@@ -237,6 +237,8 @@ export function NewDocumentModal({ children }: NewDocumentModalProps) {
             form.reset()
             setActiveStep(0)
             queryClient.invalidateQueries({ queryKey: ['documents'] })
+            queryClient.invalidateQueries({ queryKey: ['attachments'] })
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
             toast.success("Document created successfully")
         },
         onError: (error: any) => {

@@ -8,6 +8,19 @@ export interface DocumentAttachment {
   file_type: string | null;
   file_size: number | null;
   created_at: string;
+  document?: {
+    id: number;
+    document_title: string;
+    zoning_application_no: string;
+    applicant_name: string;
+    date_of_application: string;
+    due_date: string | null;
+    project_type?: { id: number; name: string };
+    barangay?: { id: number; name: string };
+    purok?: { id: number; name: string };
+    landmark: string;
+    routed_to_users?: { id: number; first_name: string; last_name: string }[];
+  };
 }
 
 export interface Document {
@@ -73,6 +86,14 @@ export interface PaginatedDocuments {
   total: number;
 }
 
+export interface PaginatedAttachments {
+  data: DocumentAttachment[];
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+}
+
 export class DocumentService {
   static async getNextApplicationNo(documentTitle: string) {
     const response = await axiosInstance.get<{ applicationNo: string }>(
@@ -119,6 +140,40 @@ export class DocumentService {
 
   static async deleteDocument(id: number) {
     const response = await axiosInstance.delete(`/api/documents/${id}`);
+    return response.data;
+  }
+
+  static async getAttachments(params?: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }) {
+    const response = await axiosInstance.get<PaginatedAttachments>(
+      "/api/attachments",
+      { params },
+    );
+    return response.data;
+  }
+
+  static async downloadAttachment(id: number, fileName: string) {
+    const response = await axiosInstance.get(
+      `/api/attachments/${id}/download`,
+      {
+        responseType: "blob",
+      },
+    );
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
+  static async deleteAttachment(id: number) {
+    const response = await axiosInstance.delete(`/api/attachments/${id}`);
     return response.data;
   }
 }

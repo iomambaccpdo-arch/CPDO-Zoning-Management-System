@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Role;
+use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -61,6 +62,13 @@ class UserController extends Controller
 
             $user->roles()->sync($validated['roles']);
 
+            ActivityLogger::log(
+                'create',
+                'accounts',
+                $user->email,
+                "Created account: {$user->first_name} {$user->last_name} ({$user->email})"
+            );
+
             return response()->json($user->load('roles'), 201);
         });
     }
@@ -96,12 +104,25 @@ class UserController extends Controller
             $user->update($userData);
             $user->roles()->sync($validated['roles']);
 
+            ActivityLogger::log(
+                'update',
+                'accounts',
+                $user->email,
+                "Updated account: {$user->first_name} {$user->last_name} ({$user->email})"
+            );
+
             return response()->json($user->load('roles'));
         });
     }
 
     public function destroy(User $user)
     {
+        ActivityLogger::log(
+            'delete',
+            'accounts',
+            $user->email,
+            "Deleted account: {$user->first_name} {$user->last_name} ({$user->email})"
+        );
         $user->delete();
         return response()->json(null, 204);
     }

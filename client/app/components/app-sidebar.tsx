@@ -11,7 +11,7 @@ import {
 } from "~/components/ui/sidebar"
 import { useAuthStore } from "~/store/auth"
 import { NavLink, useLocation } from "react-router"
-import { Home, FileText, Users, Settings } from "lucide-react"
+import { Home, FileText, Users, Settings, ShieldAlert } from "lucide-react"
 
 // Define the static items, and their required permission "name" in the backend.
 const items = [
@@ -32,6 +32,12 @@ const items = [
         url: "/accounts",
         icon: Users,
         resourceName: "Accounts",
+    },
+    {
+        title: "Activity Logs",
+        url: "/activity-logs",
+        icon: ShieldAlert,
+        resourceName: "Activity Logs",
     },
     {
         title: "Settings",

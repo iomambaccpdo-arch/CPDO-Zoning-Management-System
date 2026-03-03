@@ -10,6 +10,16 @@ import {
     TableHeader,
     TableRow,
 } from "../../components/ui/table";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 import { AccountService } from "../../api/AccountService";
 import type { User, Role, PaginatedResponse } from "../../api/AccountService";
 import { AccountModal } from "../../components/accounts/account-modal";
@@ -21,6 +31,8 @@ export default function AccountsPage() {
     const [loading, setLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
+    const [deleteUserName, setDeleteUserName] = useState("");
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -48,14 +60,21 @@ export default function AccountsPage() {
         setIsModalOpen(true);
     };
 
-    const handleDelete = async (id: number) => {
-        if (confirm("Are you sure you want to delete this account?")) {
-            try {
-                await AccountService.deleteUser(id);
-                fetchUsers();
-            } catch (error) {
-                console.error("Failed to delete user", error);
-            }
+    const handleDelete = (user: User) => {
+        setDeleteUserId(user.id);
+        setDeleteUserName(`${user.first_name} ${user.last_name}`);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteUserId) return;
+        try {
+            await AccountService.deleteUser(deleteUserId);
+            fetchUsers();
+        } catch (error) {
+            console.error("Failed to delete user", error);
+        } finally {
+            setDeleteUserId(null);
+            setDeleteUserName("");
         }
     };
 
@@ -144,7 +163,7 @@ export default function AccountsPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => handleDelete(user.id)}
+                                                    onClick={() => handleDelete(user)}
                                                 >
                                                     <Trash2 className="h-4 w-4 text-red-600" />
                                                 </Button>
@@ -205,6 +224,32 @@ export default function AccountsPage() {
                 onSuccess={fetchUsers}
                 user={selectedUser}
             />
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog
+                open={deleteUserId !== null}
+                onOpenChange={(open) => { if (!open) { setDeleteUserId(null); setDeleteUserName(""); } }}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Account</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete the account for{" "}
+                            <span className="font-semibold text-zinc-800">{deleteUserName}</span>?
+                            This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={confirmDelete}
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

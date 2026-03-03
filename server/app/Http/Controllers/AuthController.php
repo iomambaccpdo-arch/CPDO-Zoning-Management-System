@@ -20,6 +20,13 @@ class AuthController extends Controller
 
             $user = Auth::user()->load('roles.permissions')->append('permissions');
 
+            \App\Support\ActivityLogger::log(
+                'login',
+                'auth',
+                $user->email,
+                "{$user->first_name} {$user->last_name} logged in."
+            );
+
             return response()->json([
                 'user' => $user
             ]);
@@ -32,6 +39,17 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        $user = Auth::user();
+
+        if ($user) {
+            \App\Support\ActivityLogger::log(
+                'logout',
+                'auth',
+                $user->email,
+                "{$user->first_name} {$user->last_name} logged out."
+            );
+        }
+
         Auth::logout();
 
         $request->session()->invalidate();

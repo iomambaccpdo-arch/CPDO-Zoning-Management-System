@@ -14,5 +14,6 @@ export default [
     route("accounts", "pages/accounts/index.tsx"),
     route("settings", "pages/settings/index.tsx"),
     route("profile", "pages/profile/index.tsx"),
+    route("activity-logs", "pages/activity-logs/index.tsx"),
   ]),
 ] satisfies RouteConfig;
